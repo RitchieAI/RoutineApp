@@ -13,7 +13,7 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
 export default function LoginScreen() {
   const { colors } = useTheme();
   const { t } = useLanguage();
-  const { login } = useAuth();
+  const { login, googleLogin } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -22,6 +22,7 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -37,6 +38,20 @@ export default function LoginScreen() {
       setError(e.message || 'Login failed');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    setGoogleLoading(true);
+    try {
+      await googleLogin();
+      // On native, the flow completes here; on web, the page redirects
+      router.replace('/(tabs)/today');
+    } catch (e: any) {
+      setError(e.message || 'Google login failed');
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -115,6 +130,33 @@ export default function LoginScreen() {
               <Text style={[styles.primaryBtnText, { color: colors.white }]}>{t('login')}</Text>
             )}
           </TouchableOpacity>
+
+          {/* Divider */}
+          <View style={styles.dividerRow}>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+            <Text style={[styles.dividerText, { color: colors.textMuted }]}>or</Text>
+            <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+          </View>
+
+          {/* Google Login Button */}
+          <TouchableOpacity
+            testID="google-login-button"
+            style={[styles.googleBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={handleGoogleLogin}
+            disabled={googleLoading}
+            activeOpacity={0.7}
+          >
+            {googleLoading ? (
+              <ActivityIndicator color={colors.text} />
+            ) : (
+              <>
+                <View style={styles.googleIconContainer}>
+                  <Text style={styles.googleIconG}>G</Text>
+                </View>
+                <Text style={[styles.googleBtnText, { color: colors.text }]}>{t('loginWithGoogle')}</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
 
         <View style={styles.footer}>
@@ -156,6 +198,36 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   primaryBtnText: { fontSize: 17, fontWeight: '700', letterSpacing: 0.3 },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { paddingHorizontal: 16, fontSize: 13, fontWeight: '600' },
+  googleBtn: {
+    height: 56,
+    borderRadius: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    gap: 12,
+  },
+  googleIconContainer: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#4285F4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  googleIconG: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  googleBtnText: { fontSize: 16, fontWeight: '600' },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 32 },
   footerText: { fontSize: 15 },
   footerLink: { fontSize: 15, fontWeight: '700' },

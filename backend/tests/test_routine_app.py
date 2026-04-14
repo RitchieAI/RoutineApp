@@ -13,7 +13,7 @@ class TestAuth:
     """Authentication endpoint tests"""
 
     def test_login_success(self):
-        """Test login with admin credentials"""
+        """Test login with admin credentials (email/password auth)"""
         response = requests.post(f"{BASE_URL}/api/auth/login", json={
             "email": "admin@example.com",
             "password": "admin123"
@@ -26,7 +26,7 @@ class TestAuth:
         assert "user" in data, "Missing user object"
         assert data["user"]["email"] == "admin@example.com"
         assert data["user"]["name"] == "Admin"
-        print("✓ Login successful with admin credentials")
+        print("✓ Email/password login successful with admin credentials")
 
     def test_login_invalid_credentials(self):
         """Test login with wrong password"""
@@ -89,6 +89,42 @@ class TestAuth:
         response = requests.get(f"{BASE_URL}/api/auth/me")
         assert response.status_code == 401, "Should return 401 without token"
         print("✓ GET /api/auth/me correctly rejects requests without token")
+
+
+class TestGoogleAuth:
+    """Google OAuth integration tests"""
+
+    def test_google_callback_endpoint_exists(self):
+        """Test POST /api/auth/google-callback endpoint exists"""
+        # Test with invalid session_id to verify endpoint exists and error handling
+        response = requests.post(f"{BASE_URL}/api/auth/google-callback", json={
+            "session_id": "invalid_test_session_id_12345"
+        })
+        # Should return 401 for invalid session, not 404 (endpoint exists)
+        assert response.status_code in [401, 502], f"Expected 401 or 502, got {response.status_code}: {response.text}"
+        print("✓ POST /api/auth/google-callback endpoint exists and handles invalid session_id")
+
+    def test_google_callback_missing_session_id(self):
+        """Test google-callback with missing session_id"""
+        response = requests.post(f"{BASE_URL}/api/auth/google-callback", json={})
+        # Should return 422 for validation error (missing required field)
+        assert response.status_code == 422, f"Expected 422 for missing session_id, got {response.status_code}"
+        print("✓ Google callback correctly validates required session_id field")
+
+    def test_email_password_login_still_works(self):
+        """Verify existing email/password login still works after Google OAuth addition"""
+        response = requests.post(f"{BASE_URL}/api/auth/login", json={
+            "email": "admin@example.com",
+            "password": "admin123"
+        })
+        assert response.status_code == 200, f"Email/password login broken: {response.text}"
+        
+        data = response.json()
+        assert "access_token" in data
+        assert "refresh_token" in data
+        assert "user" in data
+        assert data["user"]["email"] == "admin@example.com"
+        print("✓ Email/password login still works correctly (not broken by Google OAuth addition)")
 
 
 class TestRoutines:

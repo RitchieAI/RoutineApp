@@ -10,6 +10,7 @@ import secrets
 import logging
 import bcrypt
 import jwt
+import httpx
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends
@@ -104,6 +105,9 @@ class PushTokenRegister(BaseModel):
     token: str
     platform: str = "ios"
     device_name: str = ""
+
+class GoogleCallbackRequest(BaseModel):
+    session_id: str
 
 
 # ============ AUTH HELPERS ============
@@ -277,6 +281,70 @@ async def forgot_password(data: ForgotPasswordRequest):
     })
     logger.info(f"Password reset token for {email}: {token}")
     return {"message": "If the email exists, a reset link has been sent."}
+
+
+@api_router.post("/auth/google-callback")
+async def google_callback(data: GoogleCallbackRequest):
+    """Exchange Emergent Google OAuth session_id for JWT tokens"""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                headers={"X-Session-ID": data.session_id},
+                timeout=15.0,
+            )
+        except httpx.RequestError:
+            raise HTTPException(status_code=502, detail="Failed to contact auth service")
+
+    if response.status_code != 200:
+        raise HTTPException(status_code=401, detail="Invalid or expired Google session")
+
+    auth_data = response.json()
+    email = auth_data["email"].lower()
+    name = auth_data.get("name", "")
+    picture = auth_data.get("picture", "")
+
+    existing = await db.users.find_one({"email": email})
+
+    if existing:
+        user_id = str(existing["_id"])
+        await db.users.update_one(
+            {"email": email},
+            {"$set": {"name": name or existing.get("name", ""), "picture": picture}}
+        )
+        user_doc = await db.users.find_one({"email": email})
+    else:
+        user_doc = {
+            "email": email,
+            "password_hash": "",
+            "name": name,
+            "picture": picture,
+            "auth_provider": "google",
+            "preferred_language": "en",
+            "theme_mode": "system",
+            "notifications_enabled": True,
+            "reminder_times": [],
+            "push_tokens": [],
+            "created_at": datetime.now(timezone.utc),
+        }
+        result = await db.users.insert_one(user_doc)
+        user_id = str(result.inserted_id)
+
+    access_token = create_access_token(user_id, email)
+    refresh_token = create_refresh_token(user_id)
+
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user": format_user_response(user_doc) if existing else {
+            "id": user_id,
+            "email": email,
+            "name": name,
+            "preferred_language": "en",
+            "theme_mode": "system",
+            "notifications_enabled": True,
+        },
+    }
 
 
 @api_router.post("/auth/reset-password")
