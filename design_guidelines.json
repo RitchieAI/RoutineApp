@@ -1,0 +1,128 @@
+{
+  "project_context": {
+    "domain": "Productivity & Habit Tracking",
+    "platform": "React Native Expo (Mobile App)",
+    "theme": "Light and Dark Mode Supported",
+    "archetype": "Archetype 4: Swiss & High-Contrast",
+    "vibe": "Clean, Minimal, Modern, Motivating (Not Playful)"
+  },
+  "typography": {
+    "font_family": {
+      "primary": "Manrope",
+      "fallback": "System (San Francisco / Roboto)"
+    },
+    "scales": {
+      "h1_hero": "text-4xl font-extrabold tracking-tight",
+      "h2_section": "text-2xl font-bold tracking-tight",
+      "h3_card": "text-lg font-semibold",
+      "body": "text-base font-normal leading-relaxed",
+      "caption": "text-sm font-medium uppercase tracking-[0.1em]",
+      "tiny": "text-xs font-medium"
+    }
+  },
+  "colors": {
+    "light": {
+      "background": "#FFFFFF",
+      "surface": "#F9FAFB",
+      "surface_elevated": "#F3F4F6",
+      "primary": "#0047FF",
+      "text_main": "#0A0A0A",
+      "text_muted": "#6B7280",
+      "border": "#E5E7EB",
+      "success": "#00D26A",
+      "error": "#EF4444",
+      "overlay": "rgba(0, 0, 0, 0.4)"
+    },
+    "dark": {
+      "background": "#0A0A0A",
+      "surface": "#121212",
+      "surface_elevated": "#1C1C1E",
+      "primary": "#3B82F6",
+      "text_main": "#F9FAFB",
+      "text_muted": "#A1A1AA",
+      "border": "#27272A",
+      "success": "#00D26A",
+      "error": "#EF4444",
+      "overlay": "rgba(0, 0, 0, 0.6)"
+    }
+  },
+  "spacing_and_layout": {
+    "screen_padding": "px-6 pt-12 pb-8",
+    "card_padding": "p-5",
+    "item_padding": "py-4",
+    "gap_large": "gap-8",
+    "gap_medium": "gap-4",
+    "gap_small": "gap-2",
+    "border_radius": {
+      "screen": "rounded-none",
+      "card": "rounded-2xl",
+      "button": "rounded-full",
+      "checkbox": "rounded-lg",
+      "badge": "rounded-full"
+    }
+  },
+  "components": {
+    "RoutineCard": {
+      "container": "bg-surface dark:bg-surface border border-border dark:border-border rounded-2xl p-5 mb-4",
+      "header": "flex-row justify-between items-center mb-4",
+      "title": "text-h3_card text-text_main dark:text-text_main"
+    },
+    "TaskItemRow": {
+      "container": "flex-row items-center justify-between py-3 border-b border-border dark:border-border last:border-b-0",
+      "text_active": "text-body text-text_main dark:text-text_main",
+      "text_completed": "text-body text-text_muted dark:text-text_muted line-through",
+      "checkbox_container": "w-7 h-7 rounded-lg border-2 items-center justify-center",
+      "checkbox_unchecked": "border-text_muted bg-transparent",
+      "checkbox_checked": "border-primary bg-primary dark:bg-primary dark:border-primary"
+    },
+    "StreakIndicator": {
+      "container": "flex-row items-center gap-1.5 bg-success/10 px-3 py-1.5 rounded-full",
+      "text": "text-success text-tiny font-bold tracking-wider",
+      "icon_color": "#00D26A"
+    },
+    "PrimaryButton": {
+      "container": "w-full bg-primary py-4 rounded-full flex-row justify-center items-center active:opacity-80 mt-6",
+      "text": "text-white text-lg font-bold tracking-wide"
+    },
+    "SecondaryButton": {
+      "container": "w-full bg-surface_elevated dark:bg-surface_elevated py-4 rounded-full flex-row justify-center items-center active:opacity-80 mt-3",
+      "text": "text-text_main dark:text-text_main text-lg font-bold tracking-wide"
+    },
+    "ThemeToggle": {
+      "container": "flex-row items-center justify-between py-4 border-b border-border dark:border-border"
+    },
+    "LanguageSwitcher": {
+      "container": "flex-row items-center justify-between py-4 border-b border-border dark:border-border"
+    }
+  },
+  "animations_and_interactions": {
+    "checkbox": "Use a subtle spring scaling animation (e.g. React Native Reanimated) on check/uncheck. Must trigger Haptics.impactAsync('light').",
+    "buttons": "Active opacity set to 0.7 for standard touchables.",
+    "screen_transitions": "Use native stack standard transitions (slide-from-right on iOS, fade on Android).",
+    "empty_state": "Fade in smoothly when no routines exist."
+  },
+  "icons": {
+    "library": "lucide-react-native",
+    "stroke_width": 2,
+    "sizes": {
+      "small": 18,
+      "medium": 24,
+      "large": 32
+    }
+  },
+  "media": {
+    "images": {
+      "google_logo": "https://images.unsplash.com/photo-1662947190722-5d272f82a526?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjV8MHwxfHNlYXJjaHwxfHxnb29nbGUlMjBsb2dvfGVufDB8fHx8MTc3NjE5MzQ2NXww&ixlib=rb-4.1.0&q=85",
+      "google_logo_description": "Use this URL or an equivalent local asset for the 'Login with Google' button icon."
+    }
+  },
+  "instructions_to_main_agent": [
+    "Environment: This is a React Native Expo app. Do NOT use web-only libraries like framer-motion, HTML tags, or tailwind web-only classes (like hover:). Use React Native primitives (View, Text, Pressable) with Nativewind or equivalent styling.",
+    "File Extensions: Use .js files as requested by the user.",
+    "Theming: Implement Dark Mode and Light Mode natively via React Native Appearance or Nativewind dark mode classes. Stick strictly to the defined hex codes for pure contrast.",
+    "Architecture: Create modular UI components (RoutineCard, TaskItemRow, StreakIndicator) and reuse them across TodayPage, RoutinesPage, etc.",
+    "Today View Focus: The TodayPage is the primary screen. It must be thumb-friendly. Ensure checkboxes are large enough (min 44x44px touch target) for easy tapping.",
+    "Testing: Add 'testID' attributes (the RN equivalent of data-testid) to all interactive elements, formatted as kebab-case, role-based (e.g., testID='login-submit-button').",
+    "Haptics: Integrate 'expo-haptics' and trigger light impact on task completion to make it motivating."
+  ]
+}
