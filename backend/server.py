@@ -8,6 +8,7 @@ import os
 import uuid
 import secrets
 import logging
+import asyncio
 import bcrypt
 import jwt
 import httpx
@@ -788,6 +789,92 @@ async def register_push_token(data: PushTokenRegister, user: dict = Depends(get_
     return {"message": "Token registered"}
 
 
+@api_router.post("/notifications/test")
+async def send_test_notification(user: dict = Depends(get_current_user)):
+    """Send a test push notification to the current user"""
+    user_doc = await db.users.find_one({"_id": ObjectId(user["id"])})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    push_tokens = user_doc.get("push_tokens", [])
+    if not push_tokens:
+        raise HTTPException(status_code=400, detail="No push tokens registered")
+
+    lang = user_doc.get("preferred_language", "en")
+    title = "Routinely"
+    body = "Test-Benachrichtigung erfolgreich!" if lang == "de" else "Test notification successful!"
+
+    sent = 0
+    for td in push_tokens:
+        result = await send_expo_push(td["token"], title, body, {"type": "test"})
+        if result:
+            sent += 1
+
+    return {"message": f"Sent to {sent} device(s)"}
+
+
+# ============ PUSH NOTIFICATION HELPERS ============
+
+async def send_expo_push(token: str, title: str, body: str, data: dict = None):
+    """Send a single push notification via Expo Push API"""
+    async with httpx.AsyncClient() as hc:
+        try:
+            response = await hc.post(
+                "https://exp.host/--/api/v2/push/send",
+                json={
+                    "to": token,
+                    "sound": "default",
+                    "title": title,
+                    "body": body,
+                    "data": data or {},
+                },
+                headers={"Accept": "application/json", "Content-Type": "application/json"},
+                timeout=10.0,
+            )
+            logger.info(f"Push sent to {token[:30]}...: status={response.status_code}")
+            return response.json()
+        except Exception as e:
+            logger.error(f"Error sending push notification: {e}")
+            return None
+
+
+async def check_and_send_reminders():
+    """Check for users who need a reminder right now and send push notifications"""
+    now = datetime.now(timezone.utc)
+    current_hm = now.strftime("%H:%M")
+    today = now.strftime("%Y-%m-%d")
+
+    cursor = db.users.find({
+        "notifications_enabled": True,
+        "reminder_times": current_hm,
+    })
+
+    async for user_doc in cursor:
+        push_tokens = user_doc.get("push_tokens", [])
+        if not push_tokens:
+            continue
+
+        user_id = str(user_doc["_id"])
+
+        await generate_instances(user_id, today)
+
+        incomplete = await db.scheduled_item_instances.count_documents({
+            "user_id": user_id,
+            "date": today,
+            "is_completed": False,
+        })
+
+        if incomplete == 0:
+            continue
+
+        lang = user_doc.get("preferred_language", "en")
+        title = "Routinely"
+        body = f"Du hast noch {incomplete} offene Aufgaben für heute" if lang == "de" else f"You have {incomplete} open tasks for today"
+
+        for td in push_tokens:
+            await send_expo_push(td["token"], title, body, {"type": "reminder", "count": incomplete})
+
+
 # ============ STARTUP / SHUTDOWN ============
 
 @app.on_event("startup")
@@ -828,9 +915,27 @@ async def startup():
 
     logger.info("Startup complete.")
 
+    # Start background reminder scheduler (check every 60 seconds)
+    global reminder_task
+    reminder_task = asyncio.create_task(reminder_loop())
+
+
+async def reminder_loop():
+    """Background loop that checks reminders every 60 seconds"""
+    logger.info("Reminder scheduler started")
+    while True:
+        try:
+            await check_and_send_reminders()
+        except Exception as e:
+            logger.error(f"Reminder loop error: {e}")
+        await asyncio.sleep(60)
+
 
 @app.on_event("shutdown")
 async def shutdown():
+    global reminder_task
+    if reminder_task:
+        reminder_task.cancel()
     client.close()
 
 

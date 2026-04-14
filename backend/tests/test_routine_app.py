@@ -1,5 +1,5 @@
 # Backend API Tests for Routine Management App
-# Tests: Auth (register, login, me), Routines CRUD, Items CRUD, Instances (today, toggle), Settings
+# Tests: Auth (register, login, me, Google OAuth), Routines CRUD, Items CRUD, Instances (today, toggle), Settings, Notifications (register token, test notification)
 
 import pytest
 import requests
@@ -451,7 +451,9 @@ class TestSettings:
         assert "language" in data
         assert "theme_mode" in data
         assert "notifications_enabled" in data
-        print("✓ GET /api/settings works")
+        assert "reminder_times" in data, "Missing reminder_times field"
+        assert isinstance(data["reminder_times"], list), "reminder_times should be a list"
+        print("✓ GET /api/settings works and returns reminder_times")
 
     def test_update_settings(self, auth_token):
         """Test PUT /api/settings"""
@@ -477,3 +479,95 @@ class TestSettings:
         )
         assert get_res.json()["language"] == "de"
         print("✓ Settings persisted correctly")
+
+    def test_update_reminder_times(self, auth_token):
+        """Test PUT /api/settings with reminder_times array"""
+        test_times = ["09:00", "14:00", "20:00"]
+        response = requests.put(f"{BASE_URL}/api/settings", 
+            headers={"Authorization": f"Bearer {auth_token}"},
+            json={"reminder_times": test_times}
+        )
+        assert response.status_code == 200, f"Update reminder_times failed: {response.text}"
+        
+        data = response.json()
+        assert "reminder_times" in data
+        assert data["reminder_times"] == test_times
+        print(f"✓ Reminder times updated successfully: {test_times}")
+        
+        # Verify persistence
+        get_res = requests.get(f"{BASE_URL}/api/settings", 
+            headers={"Authorization": f"Bearer {auth_token}"}
+        )
+        assert get_res.json()["reminder_times"] == test_times
+        print("✓ Reminder times persisted correctly")
+
+
+class TestNotifications:
+    """Notification endpoint tests"""
+
+    @pytest.fixture
+    def auth_token(self):
+        """Get auth token"""
+        response = requests.post(f"{BASE_URL}/api/auth/login", json={
+            "email": "admin@example.com",
+            "password": "admin123"
+        })
+        return response.json()["access_token"]
+
+    def test_register_push_token(self, auth_token):
+        """Test POST /api/notifications/register-token"""
+        response = requests.post(f"{BASE_URL}/api/notifications/register-token", 
+            headers={"Authorization": f"Bearer {auth_token}"},
+            json={
+                "token": "ExponentPushToken[TEST_xxxxxxxxxxxxxxxxxxxxxx]",
+                "platform": "ios",
+                "device_name": "Test iPhone"
+            }
+        )
+        assert response.status_code == 200, f"Register token failed: {response.text}"
+        
+        data = response.json()
+        assert "message" in data
+        assert data["message"] == "Token registered"
+        print("✓ Push token registered successfully")
+
+    def test_register_token_requires_auth(self):
+        """Test POST /api/notifications/register-token without auth"""
+        response = requests.post(f"{BASE_URL}/api/notifications/register-token", 
+            json={
+                "token": "ExponentPushToken[TEST_xxxxxxxxxxxxxxxxxxxxxx]",
+                "platform": "ios",
+                "device_name": "Test iPhone"
+            }
+        )
+        assert response.status_code == 401, "Should return 401 without auth token"
+        print("✓ Register token correctly requires authentication")
+
+    def test_send_test_notification(self, auth_token):
+        """Test POST /api/notifications/test"""
+        # First register a token
+        requests.post(f"{BASE_URL}/api/notifications/register-token", 
+            headers={"Authorization": f"Bearer {auth_token}"},
+            json={
+                "token": "ExponentPushToken[TEST_notification_test]",
+                "platform": "ios",
+                "device_name": "Test Device"
+            }
+        )
+        
+        # Send test notification
+        response = requests.post(f"{BASE_URL}/api/notifications/test", 
+            headers={"Authorization": f"Bearer {auth_token}"}
+        )
+        assert response.status_code == 200, f"Test notification failed: {response.text}"
+        
+        data = response.json()
+        assert "message" in data
+        assert "Sent to" in data["message"]
+        print(f"✓ Test notification sent: {data['message']}")
+
+    def test_test_notification_requires_auth(self):
+        """Test POST /api/notifications/test without auth"""
+        response = requests.post(f"{BASE_URL}/api/notifications/test")
+        assert response.status_code == 401, "Should return 401 without auth token"
+        print("✓ Test notification correctly requires authentication")
