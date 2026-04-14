@@ -36,7 +36,7 @@ A cross-platform mobile app (iOS/Android) built with Expo React Native for manag
 - Detail: Routine Detail, Create/Edit Routine, Create/Edit Item
 
 ## Future Features (V2+)
-- Emergent-managed Google Social Login
+- ~~Emergent-managed Google Social Login~~ ✅ Implemented
 - Expo Push Notifications with reminders
 - Analytics/habit insights
 - Recurrence editor improvements
