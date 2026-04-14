@@ -665,8 +665,12 @@ async def generate_today_instances(user: dict = Depends(get_current_user)):
 
 
 @api_router.get("/instances/today")
-async def get_today_instances(user: dict = Depends(get_current_user)):
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+async def get_today_instances(user: dict = Depends(get_current_user), date: Optional[str] = None):
+    # Use client-provided date (local timezone) or fall back to UTC
+    if date and len(date) == 10:
+        today = date
+    else:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     await generate_instances(user["id"], today)
 
     instances = await db.scheduled_item_instances.find(

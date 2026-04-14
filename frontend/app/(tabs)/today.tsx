@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, RefreshControl, StyleSheet,
   ActivityIndicator, TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useLanguage } from '../../src/contexts/LanguageContext';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -22,6 +22,14 @@ interface RoutineGroup {
   totalCount: number;
 }
 
+function getLocalDateString(): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export default function TodayScreen() {
   const { colors } = useTheme();
   const { t } = useLanguage();
@@ -35,7 +43,8 @@ export default function TodayScreen() {
 
   const loadToday = useCallback(async () => {
     try {
-      const data = await api('/api/instances/today');
+      const localDate = getLocalDateString();
+      const data = await api(`/api/instances/today?date=${localDate}`);
       setGroups(data.groups || []);
     } catch (e) {
       console.error('Error loading today:', e);
@@ -45,9 +54,12 @@ export default function TodayScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadToday();
-  }, [loadToday]);
+  // Reload data every time the tab is focused
+  useFocusEffect(
+    useCallback(() => {
+      loadToday();
+    }, [loadToday])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

@@ -1,0 +1,105 @@
+{
+  "summary": "Today tab bug fix testing - All tests passed. Bug fix verified: 1) useFocusEffect reloads data on tab focus (not just mount), 2) Frontend sends local date as query param to backend, 3) Backend accepts date param and generates instances correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_today_date_param.py",
+    "/app/test_reports/pytest/pytest_today_date_param.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "✓ useFocusEffect correctly implemented in today.tsx (line 58-62)",
+    "✓ getLocalDateString() function generates YYYY-MM-DD format correctly (line 25-31)",
+    "✓ Frontend sends local date to backend: /api/instances/today?date=${localDate} (line 47)",
+    "✓ Backend GET /api/instances/today accepts optional date query param (line 668)",
+    "✓ Backend falls back to UTC date when no date param provided (line 673)",
+    "✓ Backend validates date format (checks len == 10) before using (line 670)",
+    "✓ Instance generation works correctly for provided date",
+    "✓ Response structure includes date field matching requested date",
+    "✓ All existing functionality (auth, routines, items, settings, notifications) still working"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (5/5 tests passed)",
+    "frontend": "100% (2/2 critical flows tested and passed)"
+  },
+  "seed_data_creation": "No new seed data created. Cleaned up 5 TEST_Date Param Test Routine entries created during testing. Morgenroutine with Zähne putzen and Sport machen remains for admin user.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Today tab bug fix fully tested and verified. The bug where tasks created in routines were not showing in Today tab has been fixed. Root causes addressed: 1) Changed from useEffect to useFocusEffect so data reloads on every tab focus, 2) Frontend now sends local device date as query param to avoid timezone differences. All previous features (auth, routines, items, instances, settings, notifications) still working correctly.",
+  "backend_test_details": {
+    "total_tests": 5,
+    "passed": 5,
+    "failed": 0,
+    "test_file": "/app/backend/tests/test_today_date_param.py",
+    "test_categories": {
+      "date_param_with_specific_date": "PASSED - Returns instances for provided date (2026-04-14)",
+      "date_param_without_date": "PASSED - Falls back to UTC date when no param provided",
+      "date_param_different_date": "PASSED - Generates instances for tomorrow's date correctly",
+      "date_param_invalid_format": "PASSED - Handles invalid date format gracefully",
+      "response_structure": "PASSED - Response has correct structure (date, groups, routine, instances)"
+    }
+  },
+  "frontend_test_details": {
+    "tested_screens": [
+      "Login screen - email/password authentication",
+      "Today screen - displays routines and tasks for today",
+      "Routines screen - navigation test"
+    ],
+    "tested_flows": [
+      "Login with admin@example.com → Today screen loads",
+      "Today screen shows Morgenroutine with Zähne putzen and Sport machen tasks",
+      "Navigate to Routines tab → back to Today tab → data reloads (useFocusEffect test)",
+      "All data visible after navigation (confirms useFocusEffect working)"
+    ],
+    "mobile_design_review": {
+      "viewport": "390x844 (mobile)",
+      "today_screen": "Clean design with greeting, user name, progress bar, routine cards with tasks",
+      "routine_cards": "Display routine name, icon, color, completion count, streak indicator, and task list",
+      "task_items": "Checkbox, task title, proper spacing",
+      "bottom_navigation": "Three tabs (Today, Routines, Settings) with icons and labels",
+      "touch_targets": "All interactive elements appear to meet 44x44 minimum"
+    }
+  },
+  "screenshots_captured": [
+    "/tmp/01_today_screen_initial.png - Today screen after login showing Morgenroutine",
+    "/tmp/05_routines_screen.png - Routines screen with list of routines",
+    "/tmp/06_today_after_navigation.png - Today screen after navigating back from Routines (useFocusEffect test)"
+  ],
+  "bug_fix_verification": {
+    "issue": "Tasks created in routines were not showing in Today tab on mobile",
+    "root_causes": [
+      "useEffect only runs once on mount, not on tab re-focus",
+      "Server used UTC date which could differ from user's local date"
+    ],
+    "fixes_applied": [
+      "Changed Today screen from useEffect to useFocusEffect (line 58-62 in today.tsx)",
+      "Frontend sends local device date as query param: /api/instances/today?date=YYYY-MM-DD (line 47 in today.tsx)",
+      "Backend accepts optional date query param and falls back to UTC if not provided (line 668-673 in server.py)"
+    ],
+    "verification_results": {
+      "useFocusEffect_working": "✅ VERIFIED - Data reloads on tab focus, not just on mount",
+      "local_date_sent": "✅ VERIFIED - Frontend sends local date in YYYY-MM-DD format",
+      "backend_accepts_date": "✅ VERIFIED - Backend uses provided date for instance generation",
+      "backward_compatibility": "✅ VERIFIED - Backend still works without date param (UTC fallback)",
+      "data_persistence": "✅ VERIFIED - Morgenroutine with tasks displays correctly",
+      "navigation_reload": "✅ VERIFIED - Navigating away and back reloads data"
+    }
+  },
+  "test_execution_summary": {
+    "backend_tests": "Created new test file test_today_date_param.py with 5 comprehensive tests covering date parameter functionality, UTC fallback, invalid date handling, and response structure validation. All tests passed.",
+    "frontend_tests": "Used Playwright to test login flow, Today screen data display, and tab navigation with useFocusEffect. Verified that Morgenroutine with Zähne putzen and Sport machen tasks appears correctly and data reloads after navigation.",
+    "cleanup": "Deleted 5 TEST_Date Param Test Routine entries created during testing. Only Morgenroutine remains for admin user.",
+    "issues_found": 0,
+    "critical_issues": 0,
+    "minor_issues": 0
+  }
+}
