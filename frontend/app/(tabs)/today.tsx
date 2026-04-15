@@ -13,7 +13,7 @@ import { TaskItemRow } from '../../src/components/TaskItemRow';
 import { StreakIndicator } from '../../src/components/StreakIndicator';
 import { EmptyState } from '../../src/components/EmptyState';
 import { getIconComponent } from '../../src/components/IconPicker';
-import { Plus } from 'lucide-react-native';
+import { Plus, CheckCircle2 } from 'lucide-react-native';
 
 interface RoutineGroup {
   routine: any;
@@ -40,6 +40,7 @@ export default function TodayScreen() {
   const [groups, setGroups] = useState<RoutineGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const reloadTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadToday = useCallback(async () => {
     try {
@@ -67,17 +68,18 @@ export default function TodayScreen() {
   };
 
   const toggleInstance = async (instanceId: string, isCompleted: boolean) => {
+    // Optimistic update with correct completedCount
     setGroups(prev =>
-      prev.map(g => ({
-        ...g,
-        instances: g.instances.map(inst =>
+      prev.map(g => {
+        const newInstances = g.instances.map(inst =>
           inst.id === instanceId ? { ...inst, is_completed: !isCompleted } : inst
-        ),
-        completedCount: g.instances.reduce((sum, inst) => {
-          if (inst.id === instanceId) return sum + (!isCompleted ? 1 : 0);
-          return sum + (inst.is_completed ? 1 : 0);
-        }, 0),
-      }))
+        );
+        return {
+          ...g,
+          instances: newInstances,
+          completedCount: newInstances.filter(i => i.is_completed).length,
+        };
+      })
     );
 
     try {
@@ -85,7 +87,9 @@ export default function TodayScreen() {
         method: 'PUT',
         body: JSON.stringify({ is_completed: !isCompleted }),
       });
-      loadToday();
+      // Debounced reload: wait 1.5s so rapid toggles don't cause race conditions
+      if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current);
+      reloadTimerRef.current = setTimeout(() => loadToday(), 1500);
     } catch (e) {
       console.error('Error toggling:', e);
       loadToday();
@@ -144,56 +148,63 @@ export default function TodayScreen() {
             title={t('nothingForToday')}
             message={t('nothingForTodayMessage')}
           />
-        ) : allDone ? (
-          <EmptyState
-            title={t('allDone')}
-            message={t('allDoneMessage')}
-            isSuccess
-          />
         ) : (
-          groups.map((group) => {
-            const IconComp = getIconComponent(group.routine.icon);
-            return (
-              <View
-                testID={`routine-group-${group.routine.id}`}
-                key={group.routine.id}
-                style={[styles.routineCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-              >
-                <TouchableOpacity
-                  testID={`routine-header-${group.routine.id}`}
-                  style={styles.routineHeader}
-                  onPress={() => router.push(`/routine/${group.routine.id}`)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.routineHeaderLeft}>
-                    <View style={[styles.iconCircle, { backgroundColor: group.routine.color + '20' }]}>
-                      <IconComp size={18} color={group.routine.color} strokeWidth={2} />
-                    </View>
-                    <View>
-                      <Text style={[styles.routineName, { color: colors.text }]}>{group.routine.name}</Text>
-                      <Text style={[styles.routineCount, { color: colors.textMuted }]}>
-                        {group.completedCount}/{group.totalCount} {t('tasksCompleted')}
-                      </Text>
-                    </View>
-                  </View>
-                  <StreakIndicator streak={group.routine.current_streak} compact />
-                </TouchableOpacity>
-
-                <View style={styles.tasksList}>
-                  {group.instances.map((inst) => (
-                    <TaskItemRow
-                      key={inst.id}
-                      id={inst.id}
-                      title={inst.title_snapshot}
-                      scheduledTime={inst.scheduled_time}
-                      isCompleted={inst.is_completed}
-                      onToggle={toggleInstance}
-                    />
-                  ))}
-                </View>
+          <>
+            {allDone && (
+              <View testID="all-done-banner" style={[styles.allDoneBanner, { backgroundColor: `${colors.success}12` }]}>
+                <CheckCircle2 size={20} color={colors.success} strokeWidth={2.5} />
+                <Text style={[styles.allDoneText, { color: colors.success }]}>{t('allDone')} {t('allDoneMessage')}</Text>
               </View>
-            );
-          })
+            )}
+            {groups.map((group) => {
+              const IconComp = getIconComponent(group.routine.icon);
+              const groupDone = group.completedCount === group.totalCount;
+              return (
+                <View
+                  testID={`routine-group-${group.routine.id}`}
+                  key={group.routine.id}
+                  style={[
+                    styles.routineCard,
+                    { backgroundColor: colors.surface, borderColor: groupDone ? colors.success + '40' : colors.border },
+                  ]}
+                >
+                  <TouchableOpacity
+                    testID={`routine-header-${group.routine.id}`}
+                    style={styles.routineHeader}
+                    onPress={() => router.push(`/routine/${group.routine.id}`)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.routineHeaderLeft}>
+                      <View style={[styles.iconCircle, { backgroundColor: group.routine.color + '20' }]}>
+                        <IconComp size={18} color={group.routine.color} strokeWidth={2} />
+                      </View>
+                      <View>
+                        <Text style={[styles.routineName, { color: colors.text }]}>{group.routine.name}</Text>
+                        <Text style={[styles.routineCount, { color: groupDone ? colors.success : colors.textMuted }]}>
+                          {group.completedCount}/{group.totalCount} {t('tasksCompleted')}
+                          {groupDone ? ' ✓' : ''}
+                        </Text>
+                      </View>
+                    </View>
+                    <StreakIndicator streak={group.routine.current_streak} compact />
+                  </TouchableOpacity>
+
+                  <View style={styles.tasksList}>
+                    {group.instances.map((inst) => (
+                      <TaskItemRow
+                        key={inst.id}
+                        id={inst.id}
+                        title={inst.title_snapshot}
+                        scheduledTime={inst.scheduled_time}
+                        isCompleted={inst.is_completed}
+                        onToggle={toggleInstance}
+                      />
+                    ))}
+                  </View>
+                </View>
+              );
+            })}
+          </>
         )}
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -235,6 +246,15 @@ const styles = StyleSheet.create({
   routineName: { fontSize: 17, fontWeight: '700' },
   routineCount: { fontSize: 12, marginTop: 2 },
   tasksList: { paddingHorizontal: 16, paddingBottom: 8 },
+  allDoneBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 16,
+  },
+  allDoneText: { fontSize: 14, fontWeight: '600', flex: 1 },
   fab: {
     position: 'absolute',
     right: 24,
