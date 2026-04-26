@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { api } from '../utils/api';
+import { clearAllLocalData } from '../utils/localStorageUtils';
 
 interface User {
   id: string;
@@ -14,11 +15,22 @@ interface User {
   notifications_enabled: boolean;
 }
 
+interface GuestUser {
+  id: 'guest';
+  email: 'guest@local';
+  name: 'Guest';
+  preferred_language: string;
+  theme_mode: string;
+  notifications_enabled: boolean;
+}
+
 interface AuthContextType {
-  user: User | null;
+  user: User | GuestUser | null;
+  isGuest: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  guestLogin: () => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   googleLogin: () => Promise<void>;
@@ -27,9 +39,11 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
+  isGuest: false,
   loading: true,
   login: async () => {},
   register: async () => {},
+  guestLogin: async () => {},
   logout: async () => {},
   refreshUser: async () => {},
   googleLogin: async () => {},
@@ -39,7 +53,8 @@ const AuthContext = createContext<AuthContextType>({
 const EMERGENT_AUTH_URL = 'https://auth.emergentagent.com/';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | GuestUser | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,6 +69,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     try {
+      // Check if guest login
+      const guestMode = await AsyncStorage.getItem('is_guest');
+      if (guestMode === 'true') {
+        setIsGuest(true);
+        const theme = await AsyncStorage.getItem('theme_mode') || 'light';
+        const language = await AsyncStorage.getItem('preferred_language') || 'en';
+        setUser({
+          id: 'guest',
+          email: 'guest@local',
+          name: 'Guest',
+          preferred_language: language,
+          theme_mode: theme,
+          notifications_enabled: false,
+        });
+        setLoading(false);
+        return;
+      }
+
       const token = await AsyncStorage.getItem('access_token');
       if (token) {
         const data = await api('/api/auth/me');
@@ -120,12 +153,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const guestLogin = async () => {
+    try {
+      // Aktiviere Gastmodus
+      await AsyncStorage.setItem('is_guest', 'true');
+      const theme = await AsyncStorage.getItem('theme_mode') || 'light';
+      const language = await AsyncStorage.getItem('preferred_language') || 'en';
+      
+      setIsGuest(true);
+      setUser({
+        id: 'guest',
+        email: 'guest@local',
+        name: 'Guest',
+        preferred_language: language,
+        theme_mode: theme,
+        notifications_enabled: false,
+      });
+    } catch (error) {
+      console.error('Guest login error:', error);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     try {
-      await api('/api/auth/logout', { method: 'POST' });
+      if (!isGuest) {
+        await api('/api/auth/logout', { method: 'POST' });
+      }
     } catch {}
+    
+    // Bereinige alle Daten beim Logout
     await AsyncStorage.removeItem('access_token');
     await AsyncStorage.removeItem('refresh_token');
+    await AsyncStorage.removeItem('is_guest');
+    
+    if (isGuest) {
+      await clearAllLocalData();
+      setIsGuest(false);
+    }
+    
     setUser(null);
   };
 
@@ -137,7 +203,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, googleLogin, processGoogleSession }}>
+    <AuthContext.Provider value={{ user, isGuest, loading, login, register, guestLogin, logout, refreshUser, googleLogin, processGoogleSession }}>
       {children}
     </AuthContext.Provider>
   );

@@ -12,9 +12,10 @@ interface TaskItemRowProps {
   isCompleted: boolean;
   scheduledTime?: string;
   onToggle: (id: string, currentState: boolean) => void;
+  checkboxPosition?: 'left' | 'right';
 }
 
-export function TaskItemRow({ id, title, notes, isCompleted, scheduledTime, onToggle }: TaskItemRowProps) {
+function TaskItemRowComponent({ id, title, notes, isCompleted, scheduledTime, onToggle, checkboxPosition = 'left' }: TaskItemRowProps) {
   const { colors } = useTheme();
   const scale = useSharedValue(1);
 
@@ -30,6 +31,8 @@ export function TaskItemRow({ id, title, notes, isCompleted, scheduledTime, onTo
     onToggle(id, isCompleted);
   };
 
+  const isCheckboxLeft = checkboxPosition === 'left';
+
   return (
     <TouchableOpacity
       testID={`task-item-${id}`}
@@ -37,39 +40,87 @@ export function TaskItemRow({ id, title, notes, isCompleted, scheduledTime, onTo
       activeOpacity={0.7}
       style={[styles.container, { borderBottomColor: colors.border }]}
     >
-      <View style={styles.row}>
-        <Animated.View style={animatedStyle}>
-          <View
-            testID={`task-checkbox-${id}`}
-            style={[
-              styles.checkbox,
-              isCompleted
-                ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                : { backgroundColor: 'transparent', borderColor: colors.textMuted },
-            ]}
-          >
-            {isCompleted && <Check size={16} color={colors.white} strokeWidth={3} />}
-          </View>
-        </Animated.View>
-        <View style={styles.textContainer}>
-          <Text
-            style={[
-              styles.title,
-              { color: isCompleted ? colors.textMuted : colors.text },
-              isCompleted && styles.titleCompleted,
-            ]}
-            numberOfLines={1}
-          >
-            {title}
-          </Text>
-          {scheduledTime ? (
-            <Text style={[styles.time, { color: colors.textMuted }]}>{scheduledTime}</Text>
-          ) : null}
-        </View>
+      <View
+        style={[
+          styles.row,
+          { flexDirection: 'row', justifyContent: isCheckboxLeft ? 'flex-start' : 'space-between', alignItems: 'center' },
+        ]}
+      >
+        {isCheckboxLeft ? (
+          <>
+            <Animated.View style={animatedStyle}>
+              <View
+                testID={`task-checkbox-${id}`}
+                style={[
+                  styles.checkbox,
+                  isCompleted
+                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                    : { backgroundColor: 'transparent', borderColor: colors.textMuted },
+                ]}
+              >
+                {isCompleted && <Check size={16} color={colors.white} strokeWidth={3} />}
+              </View>
+            </Animated.View>
+            <View style={[styles.textContainer, { marginLeft: 14, marginRight: 0 }]}> 
+              <Text
+                style={[
+                  styles.title,
+                  { color: isCompleted ? colors.textMuted : colors.text },
+                  isCompleted && styles.titleCompleted,
+                ]}
+                numberOfLines={1}
+              >
+                {title}
+              </Text>
+              {notes ? (
+                <Text style={[styles.notes, { color: colors.textMuted }]} numberOfLines={1}>{notes}</Text>
+              ) : null}
+              {scheduledTime ? (
+                <Text style={[styles.time, { color: colors.textMuted }]}>{scheduledTime}</Text>
+              ) : null}
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={[styles.textContainer, { marginLeft: 0, marginRight: 0, flex: 1 }]}> 
+              <Text
+                style={[
+                  styles.title,
+                  { color: isCompleted ? colors.textMuted : colors.text },
+                  isCompleted && styles.titleCompleted,
+                ]}
+                numberOfLines={1}
+              >
+                {title}
+              </Text>
+              {notes ? (
+                <Text style={[styles.notes, { color: colors.textMuted }]} numberOfLines={1}>{notes}</Text>
+              ) : null}
+              {scheduledTime ? (
+                <Text style={[styles.time, { color: colors.textMuted }]}>{scheduledTime}</Text>
+              ) : null}
+            </View>
+            <Animated.View style={animatedStyle}>
+              <View
+                testID={`task-checkbox-${id}`}
+                style={[
+                  styles.checkbox,
+                  isCompleted
+                    ? { backgroundColor: colors.primary, borderColor: colors.primary }
+                    : { backgroundColor: 'transparent', borderColor: colors.textMuted },
+                ]}
+              >
+                {isCompleted && <Check size={16} color={colors.white} strokeWidth={3} />}
+              </View>
+            </Animated.View>
+          </>
+        )}
       </View>
     </TouchableOpacity>
   );
 }
+
+export const TaskItemRow = React.memo(TaskItemRowComponent);
 
 const styles = StyleSheet.create({
   container: {
@@ -79,6 +130,9 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  rowReversed: {
+    flexDirection: 'row-reverse',
   },
   checkbox: {
     width: 28,
@@ -90,7 +144,6 @@ const styles = StyleSheet.create({
   },
   textContainer: {
     flex: 1,
-    marginLeft: 14,
   },
   title: {
     fontSize: 16,
@@ -100,6 +153,10 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   time: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  notes: {
     fontSize: 12,
     marginTop: 2,
   },

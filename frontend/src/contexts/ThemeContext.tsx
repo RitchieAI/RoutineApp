@@ -43,6 +43,7 @@ export const darkColors = {
 };
 
 type ThemeMode = 'light' | 'dark' | 'system';
+type CheckboxPosition = 'left' | 'right';
 type Colors = typeof lightColors;
 
 interface ThemeContextType {
@@ -50,6 +51,8 @@ interface ThemeContextType {
   colors: Colors;
   isDark: boolean;
   setMode: (mode: ThemeMode) => void;
+  checkboxPosition: CheckboxPosition;
+  setCheckboxPosition: (position: CheckboxPosition) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
@@ -57,10 +60,13 @@ const ThemeContext = createContext<ThemeContextType>({
   colors: lightColors,
   isDark: false,
   setMode: () => {},
+  checkboxPosition: 'left',
+  setCheckboxPosition: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>('system');
+  const [checkboxPosition, setCheckboxPositionState] = useState<CheckboxPosition>('left');
   const systemScheme = useColorScheme();
 
   const isDark = mode === 'dark' || (mode === 'system' && systemScheme === 'dark');
@@ -72,6 +78,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         setModeState(stored as ThemeMode);
       }
     });
+    AsyncStorage.getItem('checkbox_position').then((stored) => {
+      if (stored && ['left', 'right'].includes(stored)) {
+        setCheckboxPositionState(stored as CheckboxPosition);
+      }
+    });
   }, []);
 
   const setMode = (newMode: ThemeMode) => {
@@ -79,8 +90,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem('theme_mode', newMode);
   };
 
+  const setCheckboxPosition = (position: CheckboxPosition) => {
+    setCheckboxPositionState(position);
+    AsyncStorage.setItem('checkbox_position', position);
+  };
+
   return (
-    <ThemeContext.Provider value={{ mode, colors, isDark, setMode }}>
+    <ThemeContext.Provider value={{ mode, colors, isDark, setMode, checkboxPosition, setCheckboxPosition }}>
       {children}
     </ThemeContext.Provider>
   );

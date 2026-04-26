@@ -35,7 +35,7 @@ export default function AuthCallbackScreen() {
             window.history.replaceState(null, '', window.location.pathname);
           }
           // Small delay to ensure router is ready
-          setTimeout(() => router.replace('/(tabs)/today'), 100);
+          setTimeout(() => router.replace('/today'), 100);
         } else {
           // Small delay to ensure router is ready
           setTimeout(() => router.replace('/(auth)/login'), 100);

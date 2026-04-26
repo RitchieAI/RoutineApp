@@ -7,7 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useLanguage } from '../../src/contexts/LanguageContext';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { api } from '../../src/utils/api';
+import { getLocalRoutines } from '../../src/utils/localStorageUtils';
 import { StreakIndicator } from '../../src/components/StreakIndicator';
 import { EmptyState } from '../../src/components/EmptyState';
 import { getIconComponent } from '../../src/components/IconPicker';
@@ -16,6 +18,7 @@ import { Plus, ChevronRight } from 'lucide-react-native';
 export default function RoutinesScreen() {
   const { colors } = useTheme();
   const { t } = useLanguage();
+  const { isGuest } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -25,7 +28,12 @@ export default function RoutinesScreen() {
 
   const loadRoutines = useCallback(async () => {
     try {
-      const data = await api('/api/routines');
+      let data;
+      if (isGuest) {
+        data = await getLocalRoutines();
+      } else {
+        data = await api('/api/routines');
+      }
       setRoutines(data);
     } catch (e) {
       console.error('Error loading routines:', e);
@@ -33,7 +41,7 @@ export default function RoutinesScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isGuest]);
 
   useFocusEffect(
     useCallback(() => {

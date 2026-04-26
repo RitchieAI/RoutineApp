@@ -8,7 +8,6 @@ import { useTheme } from '../src/contexts/ThemeContext';
 
 function RootNavigator() {
   const { isDark } = useTheme();
-
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />

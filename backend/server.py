@@ -82,6 +82,7 @@ class ItemTemplateCreate(BaseModel):
     is_all_day: bool = True
     order_index: int = 0
     repeat_per_day_count: int = 1
+    weekdays: List[str] = []  # ['monday', 'tuesday', ...] - empty means all days
 
 class ItemTemplateUpdate(BaseModel):
     title: Optional[str] = None
@@ -92,6 +93,7 @@ class ItemTemplateUpdate(BaseModel):
     is_all_day: Optional[bool] = None
     order_index: Optional[int] = None
     repeat_per_day_count: Optional[int] = None
+    weekdays: Optional[List[str]] = None
 
 class InstanceToggle(BaseModel):
     is_completed: bool
@@ -537,6 +539,18 @@ def is_routine_due_today(routine: dict, date_str: str) -> bool:
     return True
 
 
+def is_item_due_today(template: dict, date_str: str) -> bool:
+    """Check if an item should appear on a specific day based on weekdays setting."""
+    weekdays = template.get("weekdays", [])
+    # If no weekdays specified, show on all days
+    if not weekdays:
+        return True
+    # Check if current day is in the weekdays list
+    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+    day_name = date_obj.strftime("%A").lower()
+    return day_name in weekdays
+
+
 async def generate_instances(user_id: str, date_str: str):
     routines = await db.routines.find(
         {"user_id": user_id, "is_active": True}, {"_id": 0}
@@ -553,6 +567,10 @@ async def generate_instances(user_id: str, date_str: str):
         ).sort("order_index", 1).to_list(100)
 
         for template in templates:
+            # Check if item is due today based on weekdays
+            if not is_item_due_today(template, date_str):
+                continue
+
             repeat_count = template.get("repeat_per_day_count", 1)
 
             for i in range(repeat_count):

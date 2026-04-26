@@ -13,7 +13,7 @@ import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
 export default function LoginScreen() {
   const { colors } = useTheme();
   const { t } = useLanguage();
-  const { login, googleLogin } = useAuth();
+  const { login, googleLogin, guestLogin } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -23,6 +23,7 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -33,7 +34,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await login(email.trim(), password);
-      router.replace('/(tabs)/today');
+      router.replace('/today');
     } catch (e: any) {
       setError(e.message || 'Login failed');
     } finally {
@@ -47,11 +48,24 @@ export default function LoginScreen() {
     try {
       await googleLogin();
       // On native, the flow completes here; on web, the page redirects
-      router.replace('/(tabs)/today');
+      router.replace('/today');
     } catch (e: any) {
       setError(e.message || 'Google login failed');
     } finally {
       setGoogleLoading(false);
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    setError('');
+    setGuestLoading(true);
+    try {
+      await guestLogin();
+      router.replace('/today');
+    } catch (e: any) {
+      setError(e.message || 'Guest login failed');
+    } finally {
+      setGuestLoading(false);
     }
   };
 
@@ -157,6 +171,21 @@ export default function LoginScreen() {
               </>
             )}
           </TouchableOpacity>
+
+          {/* Guest Login Button */}
+          <TouchableOpacity
+            testID="guest-login-button"
+            style={[styles.guestBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}
+            onPress={handleGuestLogin}
+            disabled={guestLoading}
+            activeOpacity={0.7}
+          >
+            {guestLoading ? (
+              <ActivityIndicator color={colors.text} />
+            ) : (
+              <Text style={[styles.guestBtnText, { color: colors.text }]}>{t('guestLogin')}</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
         <View style={styles.footer}>
@@ -228,6 +257,15 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   googleBtnText: { fontSize: 16, fontWeight: '600' },
+  guestBtn: {
+    height: 56,
+    borderRadius: 28,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  guestBtnText: { fontSize: 16, fontWeight: '600' },
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 32 },
   footerText: { fontSize: 15 },
   footerLink: { fontSize: 15, fontWeight: '700' },

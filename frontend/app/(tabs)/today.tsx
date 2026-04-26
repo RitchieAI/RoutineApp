@@ -9,6 +9,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useLanguage } from '../../src/contexts/LanguageContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { api } from '../../src/utils/api';
+import { getLocalRoutines, getLocalItems } from '../../src/utils/localStorageUtils';
 import { TaskItemRow } from '../../src/components/TaskItemRow';
 import { StreakIndicator } from '../../src/components/StreakIndicator';
 import { EmptyState } from '../../src/components/EmptyState';
@@ -30,10 +31,15 @@ function getLocalDateString(): string {
   return `${y}-${m}-${d}`;
 }
 
+function getCurrentWeekday(): string {
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  return days[new Date().getDay()];
+}
+
 export default function TodayScreen() {
-  const { colors } = useTheme();
+  const { colors, checkboxPosition } = useTheme();
   const { t } = useLanguage();
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -44,16 +50,51 @@ export default function TodayScreen() {
 
   const loadToday = useCallback(async () => {
     try {
-      const localDate = getLocalDateString();
-      const data = await api(`/api/instances/today?date=${localDate}`);
-      setGroups(data.groups || []);
+      if (isGuest) {
+        // Laden von lokalen Routines und Items für Gäste
+        const routines = await getLocalRoutines();
+        const currentWeekday = getCurrentWeekday();
+        const newGroups: RoutineGroup[] = [];
+        
+        for (const routine of routines) {
+          if (!routine.is_active) continue;
+          
+          const items = await getLocalItems(routine.id);
+          // Filter items by weekday - if weekdays is empty, show on all days
+          const filteredItems = items.filter(item => {
+            if (!item.weekdays || item.weekdays.length === 0) return true;
+            return item.weekdays.includes(currentWeekday);
+          });
+          const instances = filteredItems.map(item => ({
+            id: item.id,
+            title_snapshot: item.title,
+            notes_snapshot: item.notes,
+            scheduled_time: item.time,
+            is_completed: false, // Gäste haben keine Completion-Tracking
+          }));
+          
+          newGroups.push({
+            routine,
+            instances,
+            completedCount: 0,
+            totalCount: instances.length,
+          });
+        }
+        
+        setGroups(newGroups);
+      } else {
+        // Backend für registrierte Benutzer
+        const localDate = getLocalDateString();
+        const data = await api(`/api/instances/today?date=${localDate}`);
+        setGroups(data.groups || []);
+      }
     } catch (e) {
       console.error('Error loading today:', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isGuest]);
 
   // Reload data every time the tab is focused
   useFocusEffect(
@@ -68,7 +109,24 @@ export default function TodayScreen() {
   };
 
   const toggleInstance = async (instanceId: string, isCompleted: boolean) => {
-    // Optimistic update with correct completedCount
+    // Für Gäste: nur UI-Update
+    if (isGuest) {
+      setGroups(prev =>
+        prev.map(g => {
+          const newInstances = g.instances.map(inst =>
+            inst.id === instanceId ? { ...inst, is_completed: !isCompleted } : inst
+          );
+          return {
+            ...g,
+            instances: newInstances,
+            completedCount: newInstances.filter(i => i.is_completed).length,
+          };
+        })
+      );
+      return;
+    }
+
+    // Optimistic update with correct completedCount für registrierte Benutzer
     setGroups(prev =>
       prev.map(g => {
         const newInstances = g.instances.map(inst =>
@@ -195,9 +253,11 @@ export default function TodayScreen() {
                         key={inst.id}
                         id={inst.id}
                         title={inst.title_snapshot}
+                        notes={inst.notes_snapshot}
                         scheduledTime={inst.scheduled_time}
                         isCompleted={inst.is_completed}
                         onToggle={toggleInstance}
+                        checkboxPosition={checkboxPosition}
                       />
                     ))}
                   </View>

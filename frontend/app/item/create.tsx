@@ -7,13 +7,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useLanguage } from '../../src/contexts/LanguageContext';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { api } from '../../src/utils/api';
+import { getLocalItems, saveLocalItem, generateUUID } from '../../src/utils/localStorageUtils';
 import { PRIORITY_OPTIONS } from '../../src/utils/constants';
 import { ArrowLeft, Check, Minus, Plus } from 'lucide-react-native';
 
 export default function CreateItemScreen() {
   const { colors } = useTheme();
   const { t } = useLanguage();
+  const { isGuest } = useAuth();
   const router = useRouter();
   const { routineId, itemId } = useLocalSearchParams<{ routineId: string; itemId?: string }>();
   const insets = useSafeAreaInsets();
@@ -25,25 +28,53 @@ export default function CreateItemScreen() {
   const [hasSpecificTime, setHasSpecificTime] = useState(false);
   const [time, setTime] = useState('');
   const [repeatCount, setRepeatCount] = useState(1);
+  const [weekdays, setWeekdays] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(isEdit);
 
+  const allWeekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+  const toggleWeekday = (day: string) => {
+    setWeekdays(prev => 
+      prev.includes(day) 
+        ? prev.filter(d => d !== day)
+        : [...prev, day]
+    );
+  };
+
   useEffect(() => {
     if (isEdit && itemId) {
-      api(`/api/routines/${routineId}/items`).then((items) => {
-        const item = items.find((i: any) => i.id === itemId);
-        if (item) {
-          setTitle(item.title);
-          setNotes(item.notes || '');
-          setPriority(item.priority);
-          setHasSpecificTime(item.has_specific_time);
-          setTime(item.time || '');
-          setRepeatCount(item.repeat_per_day_count);
-        }
-        setFetching(false);
-      }).catch(() => setFetching(false));
+      if (isGuest) {
+        getLocalItems(routineId).then((items) => {
+          const item = items.find((i: any) => i.id === itemId);
+          if (item) {
+            setTitle(item.title);
+            setNotes(item.notes || '');
+            setPriority(item.priority);
+            setHasSpecificTime(item.has_specific_time);
+            setTime(item.time || '');
+            setRepeatCount(item.repeat_per_day_count);
+            setWeekdays(item.weekdays || []);
+          }
+          setFetching(false);
+        }).catch(() => setFetching(false));
+      } else {
+        api(`/api/routines/${routineId}/items`).then((items) => {
+          const item = items.find((i: any) => i.id === itemId);
+          if (item) {
+            setTitle(item.title);
+            setNotes(item.notes || '');
+            setPriority(item.priority);
+            setHasSpecificTime(item.has_specific_time);
+            setTime(item.time || '');
+            setRepeatCount(item.repeat_per_day_count);
+            setWeekdays(item.weekdays || []);
+          }
+          setFetching(false);
+        }).catch(() => setFetching(false));
+      }
     }
-  }, [itemId, routineId, isEdit]);
+  }, [itemId, routineId, isEdit, isGuest]);
 
   const handleSave = async () => {
     if (!title.trim()) return;
@@ -58,13 +89,34 @@ export default function CreateItemScreen() {
       is_all_day: !hasSpecificTime,
       order_index: 0,
       repeat_per_day_count: repeatCount,
+      weekdays: weekdays,
     };
 
     try {
-      if (isEdit) {
-        await api(`/api/items/${itemId}`, { method: 'PUT', body: JSON.stringify(body) });
+      if (isGuest) {
+        // Lokale Speicherung für Gäste
+        const localItemId = itemId || generateUUID();
+        await saveLocalItem({
+          id: localItemId,
+          routine_id: routineId,
+          title: body.title,
+          notes: body.notes || undefined,
+          priority: body.priority,
+          has_specific_time: body.has_specific_time,
+          time: body.time || undefined,
+          repeat_per_day_count: body.repeat_per_day_count,
+          is_all_day: body.is_all_day,
+          order_index: body.order_index,
+          weekdays: body.weekdays,
+          created_at: new Date().toISOString(),
+        });
       } else {
-        await api(`/api/routines/${routineId}/items`, { method: 'POST', body: JSON.stringify(body) });
+        // Backend Speicherung für angemeldete Benutzer
+        if (isEdit) {
+          await api(`/api/items/${itemId}`, { method: 'PUT', body: JSON.stringify(body) });
+        } else {
+          await api(`/api/routines/${routineId}/items`, { method: 'POST', body: JSON.stringify(body) });
+        }
       }
       router.back();
     } catch (e: any) {
@@ -218,6 +270,40 @@ export default function CreateItemScreen() {
           />
         )}
 
+        {/* Weekdays */}
+        <Text style={[styles.label, { color: colors.textMuted }]}>{t('weekdays') || 'Weekdays'}</Text>
+        <Text style={[styles.hint, { color: colors.textMuted }]}>
+          {weekdays.length === 0 ? t('allDays') || 'All days selected' : `${weekdays.length} ${t('daysSelected') || 'days selected'}`}
+        </Text>
+        <View style={styles.weekdaysRow}>
+          {allWeekdays.map((day) => {
+            const isSelected = weekdays.includes(day);
+            return (
+              <TouchableOpacity
+                key={day}
+                testID={`weekday-${day}`}
+                style={[
+                  styles.weekdayBtn,
+                  {
+                    backgroundColor: isSelected ? colors.primary + '20' : colors.surfaceElevated,
+                    borderColor: isSelected ? colors.primary : colors.border,
+                  },
+                ]}
+                onPress={() => toggleWeekday(day)}
+              >
+                <Text
+                  style={[
+                    styles.weekdayText,
+                    { color: isSelected ? colors.primary : colors.textMuted },
+                  ]}
+                >
+                  {day.charAt(0).toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         <View style={{ height: 60 }} />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -264,4 +350,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   timeLabel: { fontSize: 16, fontWeight: '600' },
+  hint: { fontSize: 13, marginBottom: 8 },
+  weekdaysRow: { flexDirection: 'row', gap: 6 },
+  weekdayBtn: {
+    width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1,
+  },
+  weekdayText: { fontSize: 14, fontWeight: '700' },
 });

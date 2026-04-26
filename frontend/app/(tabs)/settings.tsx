@@ -20,9 +20,9 @@ import {
 } from 'lucide-react-native';
 
 export default function SettingsScreen() {
-  const { colors, mode, setMode } = useTheme();
+  const { colors, mode, setMode, checkboxPosition, setCheckboxPosition } = useTheme();
   const { language, t, setLanguage } = useLanguage();
-  const { user, logout } = useAuth();
+  const { user, isGuest, logout } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -31,27 +31,44 @@ export default function SettingsScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
 
-  // Load settings on focus
+  // Load settings on focus - nur für registrierte Benutzer
   useFocusEffect(
     useCallback(() => {
-      api('/api/settings').then((data) => {
-        setNotificationsEnabled(data.notifications_enabled);
-        setReminderTimes(data.reminder_times || []);
-      }).catch(() => {});
-    }, [])
+      if (!isGuest) {
+        api('/api/settings').then((data) => {
+          setNotificationsEnabled(data.notifications_enabled);
+          setReminderTimes(data.reminder_times || []);
+        }).catch(() => {});
+      }
+    }, [isGuest])
   );
 
   const handleThemeChange = (newMode: 'light' | 'dark' | 'system') => {
     setMode(newMode);
-    api('/api/settings', { method: 'PUT', body: JSON.stringify({ theme_mode: newMode }) }).catch(() => {});
+    if (!isGuest) {
+      api('/api/settings', { method: 'PUT', body: JSON.stringify({ theme_mode: newMode }) }).catch(() => {});
+    }
   };
 
   const handleLanguageChange = (lang: 'en' | 'de') => {
     setLanguage(lang);
-    api('/api/settings', { method: 'PUT', body: JSON.stringify({ language: lang }) }).catch(() => {});
+    if (!isGuest) {
+      api('/api/settings', { method: 'PUT', body: JSON.stringify({ language: lang }) }).catch(() => {});
+    }
   };
 
   const handleNotificationToggle = async (value: boolean) => {
+    if (isGuest) {
+      // Gäste dürfen keine Benachrichtigungen einrichten
+      Alert.alert(
+        t('notifications'),
+        language === 'de'
+          ? 'Benachrichtigungen sind im Gastzugang nicht verfügbar.'
+          : 'Notifications are not available in guest mode.',
+      );
+      return;
+    }
+
     if (value) {
       // Request permission first
       const granted = await requestNotificationPermission();
@@ -109,11 +126,13 @@ export default function SettingsScreen() {
       await scheduleLocalReminders(newTimes, language);
     }
 
-    // Save to backend
-    api('/api/settings', {
-      method: 'PUT',
-      body: JSON.stringify({ reminder_times: newTimes }),
-    }).catch(() => {});
+    // Save to backend - nur für registrierte Benutzer
+    if (!isGuest) {
+      api('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ reminder_times: newTimes }),
+      }).catch(() => {});
+    }
   };
 
   const handleLogout = () => {
@@ -206,6 +225,34 @@ export default function SettingsScreen() {
                 <Globe size={16} color={language === lang ? colors.white : colors.textMuted} strokeWidth={2} />
                 <Text style={[styles.langBtnText, { color: language === lang ? colors.white : colors.textMuted }]}>
                   {lang === 'en' ? 'English' : 'Deutsch'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Checkbox Position */}
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>
+          {language === 'de' ? 'Checkbox-Position' : 'Checkbox Position'}
+        </Text>
+        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <View style={styles.langRow}>
+            {(['left', 'right'] as const).map((pos) => (
+              <TouchableOpacity
+                testID={`checkbox-position-${pos}`}
+                key={pos}
+                style={[
+                  styles.langBtn,
+                  {
+                    backgroundColor: checkboxPosition === pos ? colors.primary : colors.surfaceElevated,
+                    borderColor: checkboxPosition === pos ? colors.primary : colors.border,
+                  },
+                ]}
+                onPress={() => setCheckboxPosition(pos)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.langBtnText, { color: checkboxPosition === pos ? colors.white : colors.textMuted }]}>
+                  {pos === 'left' ? (language === 'de' ? 'Links' : 'Left') : (language === 'de' ? 'Rechts' : 'Right')}
                 </Text>
               </TouchableOpacity>
             ))}

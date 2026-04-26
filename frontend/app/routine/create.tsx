@@ -7,7 +7,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useLanguage } from '../../src/contexts/LanguageContext';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { api } from '../../src/utils/api';
+import { 
+  getLocalRoutines, 
+  saveLocalRoutine, 
+  generateUUID 
+} from '../../src/utils/localStorageUtils';
 import { IconPicker } from '../../src/components/IconPicker';
 import { ROUTINE_COLORS, DAYS_OF_WEEK } from '../../src/utils/constants';
 import { ArrowLeft, Check } from 'lucide-react-native';
@@ -15,6 +21,7 @@ import { ArrowLeft, Check } from 'lucide-react-native';
 export default function CreateRoutineScreen() {
   const { colors } = useTheme();
   const { t } = useLanguage();
+  const { isGuest } = useAuth();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
@@ -33,19 +40,36 @@ export default function CreateRoutineScreen() {
 
   useEffect(() => {
     if (isEdit) {
-      api(`/api/routines/${id}`).then((data) => {
-        setName(data.name);
-        setDescription(data.description || '');
-        setIcon(data.icon);
-        setColor(data.color);
-        setRecurrenceType(data.recurrence_type);
-        if (data.recurrence_config?.days) {
-          setWeeklyDays(data.recurrence_config.days);
-        }
-        setFetching(false);
-      }).catch(() => setFetching(false));
+      if (isGuest) {
+        getLocalRoutines().then((routines) => {
+          const routine = routines.find(r => r.id === id);
+          if (routine) {
+            setName(routine.name);
+            setDescription(routine.description || '');
+            setIcon(routine.icon);
+            setColor(routine.color);
+            setRecurrenceType(routine.recurrence_type);
+            if (routine.recurrence_days) {
+              setWeeklyDays(routine.recurrence_days);
+            }
+          }
+          setFetching(false);
+        }).catch(() => setFetching(false));
+      } else {
+        api(`/api/routines/${id}`).then((data) => {
+          setName(data.name);
+          setDescription(data.description || '');
+          setIcon(data.icon);
+          setColor(data.color);
+          setRecurrenceType(data.recurrence_type);
+          if (data.recurrence_config?.days) {
+            setWeeklyDays(data.recurrence_config.days);
+          }
+          setFetching(false);
+        }).catch(() => setFetching(false));
+      }
     }
-  }, [id, isEdit]);
+  }, [id, isEdit, isGuest]);
 
   const toggleWeeklyDay = (day: string) => {
     setWeeklyDays((prev) =>
@@ -61,10 +85,30 @@ export default function CreateRoutineScreen() {
     const body = { name: name.trim(), description: description.trim(), icon, color, recurrence_type: recurrenceType, recurrence_config: recurrenceConfig };
 
     try {
-      if (isEdit) {
-        await api(`/api/routines/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+      if (isGuest) {
+        // Lokale Speicherung für Gäste
+        const routineId = id || generateUUID();
+        const localRoutine = {
+          id: routineId,
+          name: body.name,
+          description: body.description || undefined,
+          icon: body.icon,
+          color: body.color,
+          recurrence_type: body.recurrence_type,
+          recurrence_days: recurrenceType === 'weekly' ? weeklyDays : undefined,
+          is_active: true,
+          current_streak: 0,
+          best_streak: 0,
+          created_at: new Date().toISOString(),
+        };
+        await saveLocalRoutine(localRoutine);
       } else {
-        await api('/api/routines', { method: 'POST', body: JSON.stringify(body) });
+        // Backend Speicherung für angemeldete Benutzer
+        if (isEdit) {
+          await api(`/api/routines/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+        } else {
+          await api('/api/routines', { method: 'POST', body: JSON.stringify(body) });
+        }
       }
       router.back();
     } catch (e: any) {

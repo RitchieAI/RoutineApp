@@ -7,7 +7,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useLanguage } from '../../src/contexts/LanguageContext';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { api } from '../../src/utils/api';
+import { getLocalRoutines, deleteLocalRoutine, saveLocalRoutine, getLocalItems, deleteLocalItem } from '../../src/utils/localStorageUtils';
 import { StreakIndicator } from '../../src/components/StreakIndicator';
 import { EmptyState } from '../../src/components/EmptyState';
 import { getIconComponent } from '../../src/components/IconPicker';
@@ -18,6 +20,7 @@ import {
 export default function RoutineDetailScreen() {
   const { colors } = useTheme();
   const { t } = useLanguage();
+  const { isGuest } = useAuth();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
@@ -29,19 +32,30 @@ export default function RoutineDetailScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [r, i] = await Promise.all([
-        api(`/api/routines/${id}`),
-        api(`/api/routines/${id}/items`),
-      ]);
-      setRoutine(r);
-      setItems(i);
+      if (isGuest) {
+        const routines = await getLocalRoutines();
+        const r = routines.find(r => r.id === id);
+        if (r) {
+          setRoutine(r);
+        }
+        // Lade lokale Items
+        const localItems = await getLocalItems(id);
+        setItems(localItems);
+      } else {
+        const [r, i] = await Promise.all([
+          api(`/api/routines/${id}`),
+          api(`/api/routines/${id}/items`),
+        ]);
+        setRoutine(r);
+        setItems(i);
+      }
     } catch (e) {
       console.error('Error loading routine:', e);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [id]);
+  }, [id, isGuest]);
 
   useFocusEffect(
     useCallback(() => {
@@ -57,7 +71,11 @@ export default function RoutineDetailScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await api(`/api/routines/${id}`, { method: 'DELETE' });
+            if (isGuest) {
+              await deleteLocalRoutine(id);
+            } else {
+              await api(`/api/routines/${id}`, { method: 'DELETE' });
+            }
             router.back();
           } catch (e) {
             console.error('Error deleting routine:', e);
@@ -75,7 +93,11 @@ export default function RoutineDetailScreen() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await api(`/api/items/${itemId}`, { method: 'DELETE' });
+            if (isGuest) {
+              await deleteLocalItem(itemId);
+            } else {
+              await api(`/api/items/${itemId}`, { method: 'DELETE' });
+            }
             loadData();
           } catch (e) {
             console.error('Error deleting item:', e);
@@ -87,11 +109,18 @@ export default function RoutineDetailScreen() {
 
   const handleToggleActive = async (value: boolean) => {
     try {
-      await api(`/api/routines/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ is_active: value }),
-      });
-      setRoutine((prev: any) => ({ ...prev, is_active: value }));
+      if (isGuest) {
+        const updatedRoutine = { ...routine, is_active: value };
+        await deleteLocalRoutine(id);
+        await saveLocalRoutine(updatedRoutine);
+        setRoutine(updatedRoutine);
+      } else {
+        await api(`/api/routines/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ is_active: value }),
+        });
+        setRoutine((prev: any) => ({ ...prev, is_active: value }));
+      }
     } catch (e) {
       console.error('Error toggling routine:', e);
     }
